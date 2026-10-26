@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import mimetypes
 import os
 import re
 import shutil
@@ -175,24 +176,32 @@ def create_app(token: str, store: FileStore, jobs: JobManager, desktop: bool = F
         url = social.extract_url(body.get("url", "")) or ""
         if not url:
             raise HTTPException(400, "That doesn't look like a link.")
-        name = Path(urllib.parse.urlparse(url).path).name or "download"
-        if classify(name) is None:
-            # Not a direct file link: treat it as a social-media / video page.
+        name = Path(urllib.parse.unquote(urllib.parse.urlparse(url).path)).name or "download"
+        if social.is_social_url(url):
             return {"social": True, "url": url}
-        dest = store.new_path(name)
         request = urllib.request.Request(url, headers={"User-Agent": f"Mozilla/5.0 {APP_NAME}/{__version__}"})
         try:
-            with urllib.request.urlopen(request, timeout=60) as resp, open(dest, "wb") as fh:
-                copied = 0
+            resp = urllib.request.urlopen(request, timeout=60)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(400, f"Couldn't open that link: {exc}") from exc
+        with resp:
+            ctype = (resp.headers.get_content_type() or "").lower()
+            if classify(name) is None:
+                ext = mimetypes.guess_extension(ctype) or ""
+                if ext in (".jpe", ".jpeg"):
+                    ext = ".jpg"
+                if classify("x" + ext) is None:
+                    # A web page, not a file: let the video downloader handle it.
+                    return {"social": True, "url": url}
+                name = Path(name).stem[:60] + ext
+            dest = store.new_path(name)
+            copied = 0
+            with open(dest, "wb") as fh:
                 while chunk := resp.read(1 << 20):
                     copied += len(chunk)
                     if copied > MAX_URL_DOWNLOAD:
                         raise HTTPException(400, "That file is too large to download.")
                     fh.write(chunk)
-        except HTTPException:
-            raise
-        except Exception as exc:  # noqa: BLE001
-            raise HTTPException(400, f"Couldn't download that link: {exc}") from exc
         return register(str(dest), name)
 
     @app.get("/api/files/{file_id}")

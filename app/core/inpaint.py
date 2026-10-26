@@ -13,8 +13,12 @@ at a reduced scale so the network always sees enough surrounding context.
 from __future__ import annotations
 
 import logging
+import re
+import subprocess
+import sys
 import threading
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Callable, Optional
 
 import cv2
@@ -103,6 +107,23 @@ def plan_tiles(mask: np.ndarray, tile: int = LAMA_SIZE) -> list[Tile]:
     return tiles
 
 
+@lru_cache(maxsize=1)
+def hardware_gpus() -> tuple[str, ...]:
+    """Names of real display adapters (Windows). DirectML on a software/virtual adapter is slower than the CPU."""
+    if sys.platform != "win32":
+        return ()
+    try:
+        out = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", "(Get-CimInstance Win32_VideoController).Name"],
+            capture_output=True, text=True, timeout=20, creationflags=subprocess.CREATE_NO_WINDOW,
+        ).stdout
+    except Exception:  # noqa: BLE001 - can't tell; let DirectML decide
+        return ("Graphics card",)
+    names = [n.strip() for n in out.splitlines() if n.strip()]
+    virtual = re.compile(r"basic (render|display)|remote|hyper-v|virtual|vmware|virtualbox|parsec|citrix|indirect|idd", re.I)
+    return tuple(n for n in names if not virtual.search(n))
+
+
 def _tile_weight(th: int, tw: int, ramp: int = TILE_OVERLAP // 2) -> np.ndarray:
     ys = np.minimum(np.arange(th), np.arange(th)[::-1]) + 1
     xs = np.minimum(np.arange(tw), np.arange(tw)[::-1]) + 1
@@ -131,7 +152,10 @@ class Inpainter:
             return []
         wanted = ("DmlExecutionProvider", "CUDAExecutionProvider", "CoreMLExecutionProvider")
         available = ort.get_available_providers()
-        return [p for p in wanted if p in available]
+        found = [p for p in wanted if p in available]
+        if found == ["DmlExecutionProvider"] and not hardware_gpus():
+            return []
+        return found
 
     def has_gpu(self) -> bool:
         return bool(self.gpu_providers()) and config.load_settings().get("device") != "cpu"
@@ -140,6 +164,8 @@ class Inpainter:
         provider = self._provider or (self.gpu_providers()[:1] or ["CPUExecutionProvider"])[0]
         if config.load_settings().get("device") == "cpu":
             provider = "CPUExecutionProvider"
+        if provider == "DmlExecutionProvider" and hardware_gpus():
+            return f"GPU ({hardware_gpus()[0]})"
         return {
             "DmlExecutionProvider": "GPU (DirectML)",
             "CUDAExecutionProvider": "GPU (CUDA)",
@@ -153,6 +179,8 @@ class Inpainter:
 
     def _create_session(self, providers: list[str]):
         import onnxruntime as ort
+
+        ort.disable_telemetry_events()
 
         options = ort.SessionOptions()
         options.log_severity_level = 3

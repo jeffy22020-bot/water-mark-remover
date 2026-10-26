@@ -85,8 +85,11 @@ def detect_overlays(path: str, progress: ProgressFn = None, cancel: CancelFn = N
         if progress:
             progress(p, "Looking for watermarks…")
 
+    # Short clips need short windows, or a mark that moves half-way is never seen on its own.
+    window = max(1.0, min(2.5, info.duration / 3))
     regions = detect.detect_video_overlays(
-        reader, sample_fps, (info.width, info.height), total_frames=total, progress=report, cancel=cancel
+        reader, sample_fps, (info.width, info.height), window_sec=window,
+        total_frames=total, progress=report, cancel=cancel,
     )
     return info, regions
 

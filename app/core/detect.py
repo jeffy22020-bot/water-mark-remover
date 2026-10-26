@@ -40,6 +40,8 @@ class TextDetector:
         if self._session is None:
             import onnxruntime as ort
 
+            ort.disable_telemetry_events()
+
             options = ort.SessionOptions()
             options.log_severity_level = 3
             self._session = ort.InferenceSession(str(self.model_path), options, providers=["CPUExecutionProvider"])
@@ -221,59 +223,78 @@ def detect_video_overlays(
     frames: Iterable[np.ndarray],
     sample_fps: float,
     full_size: tuple[int, int],
-    window_sec: float = 3.0,
+    window_sec: float = 2.5,
+    hop_sec: float = 0.5,
     total_frames: int = 0,
     progress: Optional[Callable[[float], None]] = None,
     cancel: Optional[Callable[[], bool]] = None,
 ) -> list[dict]:
     """Find watermarks in a stream of small grayscale frames sampled at ``sample_fps``.
 
-    Each window of ``window_sec`` seconds gets its own mask so marks that jump between
-    corners (TikTok style) are tracked. Returns ``[{start, end, mask}]`` with full-size masks.
+    Overlapping windows of ``window_sec`` (every ``hop_sec``) each get their own mask, so a
+    mark that jumps between corners (TikTok style) is caught by the windows on either side
+    of the jump. Returns ``[{start, end, mask}]`` with full-size masks.
     """
-    per_window = max(4, int(round(window_sec * sample_fps)))
-    windows: list[tuple[float, float, np.ndarray]] = []
+    from collections import deque
+
+    per_window = max(6, int(round(window_sec * sample_fps)))
+    hop = max(1, int(round(hop_sec * sample_fps)))
+    buf: deque = deque()
+    windows: list[tuple[int, int, np.ndarray]] = []
     pool: list[np.ndarray] = []  # thin sample of the whole video for the global mask
-    current: list[np.ndarray] = []
-    index = 0
-    start_index = 0
-    for frame in frames:
+    next_start = 0
+    count = 0
+    for index, frame in enumerate(frames):
         if cancel and cancel():
             raise Cancelled()
-        current.append(frame)
+        count = index + 1
+        buf.append((index, frame))
         if index % max(1, per_window // 6) == 0:
             pool.append(frame)
-        index += 1
-        if len(current) >= per_window:
-            windows.append((start_index / sample_fps, index / sample_fps, static_overlay_mask(current)))
-            current, start_index = [], index
+        while buf and buf[0][0] < next_start:
+            buf.popleft()
+        if count - next_start >= per_window:
+            windows.append((next_start, count, static_overlay_mask([f for _, f in buf])))
+            next_start += hop
         if progress and total_frames:
-            progress(min(0.95, index / total_frames))
-    if len(current) >= 3 or (current and not windows):
-        windows.append((start_index / sample_fps, index / sample_fps, static_overlay_mask(current + pool[-3:])))
-    elif current and windows:
-        s, _, m = windows[-1]
-        windows[-1] = (s, index / sample_fps, m)
-    if not windows:
+            progress(min(0.95, count / total_frames))
+    if not count:
         return []
+    if not windows or windows[-1][1] < count:
+        tail = [f for i, f in buf if i >= max(0, count - per_window)]
+        if len(tail) >= 3:
+            windows.append((max(0, count - per_window), count, static_overlay_mask(tail)))
+        elif not windows:
+            return []
 
     global_mask = static_overlay_mask(pool) if len(pool) >= 3 else np.zeros_like(windows[0][2])
     if global_mask.mean() / 255 > 0.15:
         # Nothing moves in this video, so "static" can't tell a watermark from the scene.
         global_mask = np.zeros_like(global_mask)
+    # A mostly-still window (static scene) can't be trusted: use what is static over the whole video.
+    windows = [(a, b, global_mask if m.mean() / 255 > 0.15 else m) for a, b, m in windows]
+
+    # Each hop-sized time slot keeps what most of the windows containing it agree on: a mark that
+    # is really there shows up in most of them, a chance static-looking patch only in one or two.
+    slots: list[tuple[int, int, np.ndarray]] = []
+    for a in range(0, count, hop):
+        b = min(count, a + hop)
+        covering = [m for s, e, m in windows if s <= a and e >= b] or [m for s, e, m in windows if s < b and e > a]
+        votes = np.sum([m > 0 for m in covering], axis=0)
+        need = max(1, int(np.ceil(len(covering) * 0.4)))
+        slots.append((a, b, np.where(votes >= need, 255, 0).astype(np.uint8)))
 
     regions: list[dict] = []
-    for start, end, mask in windows:
-        if mask.mean() / 255 > 0.15:
-            # Mostly-still window (static scene): trust only what is static over the whole video.
-            mask = global_mask
+    for a, b, mask in slots:
+        start, end = a / sample_fps, b / sample_fps
         if not mask.any():
             continue
-        if regions and regions[-1]["end"] >= start - 1e-6 and _iou(regions[-1]["mask"], mask) > 0.5:
-            regions[-1]["end"] = end
-            regions[-1]["mask"] = cv2.bitwise_or(regions[-1]["mask"], mask)
-            continue
-        regions.append({"start": start, "end": end, "mask": mask})
+        last = regions[-1] if regions else None
+        if last and last["end"] >= start - 1e-6 and _iou(last["mask"], mask) > 0.5:
+            last["end"] = end
+            last["mask"] = cv2.bitwise_or(last["mask"], mask)
+        else:
+            regions.append({"start": start, "end": end, "mask": mask})
 
     width, height = full_size
     out = []
@@ -281,8 +302,8 @@ def detect_video_overlays(
         full = cv2.resize(region["mask"], (width, height), interpolation=cv2.INTER_LINEAR)
         full = cv2.dilate(np.where(full > 64, 255, 0).astype(np.uint8), _disk(max(2, width // 400)))
         # Pad region boundaries a little so a mark that moves is never left uncovered.
-        start = max(0.0, region["start"] - (0.5 if i else 0))
-        end = region["end"] + 0.5 if i < len(regions) - 1 else region["end"] + 3600
+        start = max(0.0, region["start"] - (0.25 if i else 0))
+        end = region["end"] + 0.25 if i < len(regions) - 1 else region["end"] + 3600
         out.append({"start": start, "end": end, "mask": full})
     if progress:
         progress(1.0)

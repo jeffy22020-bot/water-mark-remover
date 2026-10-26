@@ -102,6 +102,21 @@ def update_ytdlp(progress: Optional[Callable[[float, str], None]] = None) -> str
     return m.group(1) if m else "latest"
 
 
+SOCIAL_HOSTS = re.compile(
+    r"(^|\.)(tiktok\.com|douyin\.com|instagram\.com|youtube\.com|youtu\.be|facebook\.com|fb\.watch|x\.com|"
+    r"twitter\.com|reddit\.com|redd\.it|pinterest\.[a-z.]+|pin\.it|vimeo\.com|snapchat\.com|threads\.net|"
+    r"bilibili\.com|kuaishou\.com|likee\.video|linkedin\.com|twitch\.tv|dailymotion\.com|tumblr\.com)$",
+    re.I,
+)
+
+
+def is_social_url(url: str) -> bool:
+    from urllib.parse import urlparse
+
+    host = (urlparse(url).hostname or "").lower()
+    return bool(SOCIAL_HOSTS.search(host))
+
+
 def extract_url(text: str) -> Optional[str]:
     m = URL_RE.search(text or "")
     return m.group(0).rstrip(").,]'\"") if m else None

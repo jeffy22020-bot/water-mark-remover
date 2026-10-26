@@ -129,8 +129,8 @@ export function initImage(section, app) {
     updateHint();
   }
 
-  async function showItem(i) {
-    if (items[active] && mode === 'edit' && editor.w) items[active].mask = editor.hasMask() ? editor.toDataURL() : null;
+  async function showItem(i, { keepMask = true } = {}) {
+    if (keepMask && items[active] && mode === 'edit' && editor.w) items[active].mask = editor.hasMask() ? editor.toDataURL() : null;
     active = i;
     const item = cur();
     $('.title').textContent = item.current.name;
@@ -276,7 +276,7 @@ export function initImage(section, app) {
       active = 0;
       home.classList.add('hidden');
       ed.classList.remove('hidden');
-      await showItem(0);
+      await showItem(0, { keepMask: false });
     },
     async openWithMask(file, maskUrl) {
       await this.open([file]);

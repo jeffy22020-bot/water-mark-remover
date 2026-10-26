@@ -79,3 +79,36 @@ def test_samples_and_pdf_flow(client):
 def test_unsupported_file(client):
     r = client.post("/api/upload", files={"file": ("notes.txt", b"hello", "text/plain")})
     assert r.status_code == 400
+
+
+def test_fetch_url_detects_file_type(client, samples):
+    import http.server
+    import threading
+
+    data = (samples / "photo-logo.jpg").read_bytes()
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            html = self.path == "/page"
+            body = b"<html>hi</html>" if html else data
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html" if html else "image/jpeg")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        base = f"http://127.0.0.1:{server.server_port}"
+        info = client.post("/api/fetch-url", json={"url": f"{base}/photo?id=1"}).json()
+        assert info["kind"] == "image" and info["name"].endswith(".jpg")
+        assert client.post("/api/fetch-url", json={"url": f"{base}/page"}).json()["social"] is True
+        assert client.post("/api/fetch-url", json={"url": "Look https://vm.tiktok.com/ZM1/"}).json() == {
+            "social": True, "url": "https://vm.tiktok.com/ZM1/"
+        }
+    finally:
+        server.shutdown()
