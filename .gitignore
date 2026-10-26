@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+/build/
+/dist/
+/models/*.onnx
+/models/*.part
+/samples/
+/packaging/MicrosoftEdgeWebview2Setup.exe
+.venv/
+venv/
+*.log

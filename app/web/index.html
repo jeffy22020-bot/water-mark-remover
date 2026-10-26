@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Watermark Remover</title>
+  <link rel="icon" href="/static/img/icon.png">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7c3-3 5 3 8 0s5 3 8 0"/><path d="M4 17l4-4 3 3 5-6 4 5"/></svg></span>
+        Watermark Remover
+      </div>
+      <nav class="tabs" role="tablist" aria-label="Tools">
+        <button class="tab-btn active" role="tab" data-tab="image">Image watermark remover</button>
+        <button class="tab-btn" role="tab" data-tab="video">Video watermark remover <span class="pill">New</span></button>
+        <button class="tab-btn" role="tab" data-tab="pdf">PDF watermark remover</button>
+        <button class="tab-btn" role="tab" data-tab="office">PowerPoint &amp; Word</button>
+        <button class="tab-btn" role="tab" data-tab="social">Social media downloader</button>
+      </nav>
+      <div class="topbar-actions">
+        <span class="device-chip" id="deviceChip" title="Where the AI runs">AI: <b>…</b></span>
+        <button class="btn ghost" id="settingsBtn" title="Settings" data-icon="settings">Settings</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="view active" id="view-image" data-kind="image"></section>
+      <section class="view" id="view-video" data-kind="video"></section>
+      <section class="view" id="view-pdf" data-kind="pdf"></section>
+      <section class="view" id="view-office" data-kind="office"></section>
+      <section class="view" id="view-social" data-kind="social"></section>
+    </main>
+  </div>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+  <div class="drop-veil hidden" id="dropVeil">Drop to open</div>
+
+  <dialog id="settingsDlg">
+    <div class="dlg-head"><h2>Settings</h2><button class="btn ghost small" data-close data-icon="x"></button></div>
+    <div class="dlg-body">
+      <div class="setting">
+        <label for="setDevice"><b>Processing device</b></label>
+        <select id="setDevice">
+          <option value="auto">Automatic – use the graphics card when possible</option>
+          <option value="cpu">Processor (CPU) only</option>
+        </select>
+        <span class="desc" id="deviceDesc"></span>
+      </div>
+      <div class="setting">
+        <label for="setImageQuality"><b>Default quality for images</b></label>
+        <select id="setImageQuality">
+          <option value="ai">AI – best result (recommended)</option>
+          <option value="fast">Fast – instant, for small marks on plain backgrounds</option>
+        </select>
+      </div>
+      <div class="setting">
+        <label for="setVideoQuality"><b>Default quality for videos</b></label>
+        <select id="setVideoQuality">
+          <option value="auto">Automatic – AI with a graphics card, Fast otherwise</option>
+          <option value="ai">AI – best result (slow without a graphics card)</option>
+          <option value="fast">Fast</option>
+        </select>
+      </div>
+      <div class="setting">
+        <label for="setCrf"><b>Video file quality</b></label>
+        <select id="setCrf">
+          <option value="16">Highest (bigger files)</option>
+          <option value="18">High (recommended)</option>
+          <option value="22">Balanced</option>
+          <option value="26">Small files</option>
+        </select>
+      </div>
+      <div class="setting">
+        <label for="setOutput"><b>Default save folder</b></label>
+        <div class="row"><input type="text" id="setOutput" placeholder="Downloads"><button class="btn small" id="pickOutput">Browse…</button></div>
+        <span class="desc">The folder “Save as…” opens in. Leave empty for your Downloads folder.</span>
+      </div>
+      <div class="setting">
+        <label for="setCookies"><b>Use my browser login for downloads</b></label>
+        <select id="setCookies">
+          <option value="">Off</option>
+          <option value="edge">Microsoft Edge</option>
+          <option value="chrome">Google Chrome</option>
+          <option value="firefox">Firefox</option>
+          <option value="brave">Brave</option>
+          <option value="opera">Opera</option>
+        </select>
+        <span class="desc">Only needed for private videos or sites that require you to be logged in (e.g. some Instagram posts). Close that browser first.</span>
+      </div>
+      <div class="setting">
+        <b>Video downloader</b>
+        <div class="row"><span class="desc" id="ytdlpVersion"></span><span style="flex:1"></span><button class="btn small" id="updateYtdlp">Update downloader</button></div>
+        <span class="desc">Video sites change often. If downloads stop working, update and restart the app.</span>
+      </div>
+      <div class="kv" id="aboutKv"></div>
+      <p class="desc" style="margin:0;color:var(--muted);font-size:12.5px">Everything runs on this computer – your files are never uploaded. Only remove watermarks from content you own or have permission to edit.</p>
+    </div>
+    <div class="dlg-foot"><button class="btn" data-close>Close</button></div>
+  </dialog>
+
+  <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
