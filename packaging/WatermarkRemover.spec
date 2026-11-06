@@ -1,10 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
 # PyInstaller build: pyinstaller --noconfirm --clean packaging/WatermarkRemover.spec
+#   default         -> dist/WatermarkRemover/ (folder used by the installer)
+#   WMR_ONEFILE=1   -> dist/WatermarkRemover-Portable.exe (single file, no install needed)
+import os
 from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
 ROOT = Path(SPECPATH).parent
+ONEFILE = os.environ.get("WMR_ONEFILE") == "1"
 
 for model in ("lama.onnx", "text_det.onnx"):
     if not (ROOT / "models" / model).exists():
@@ -45,15 +49,40 @@ a = Analysis(
     noarchive=False,
 )
 pyz = PYZ(a.pure)
-exe = EXE(
-    pyz,
-    a.scripts,
-    [],
-    exclude_binaries=True,
-    name="WatermarkRemover",
+common = dict(
     console=False,
     icon=str(ROOT / "packaging" / "icon.ico"),
     version=str(ROOT / "packaging" / "version_info.txt"),
     upx=False,
 )
-coll = COLLECT(exe, a.binaries, a.datas, name="WatermarkRemover", upx=False)
+
+if ONEFILE:
+    # The single-file app unpacks itself on every start; show a start-up screen meanwhile.
+    # (The start-up screen needs Tk at build time; the python.org Windows build has it.)
+    try:
+        import tkinter  # noqa: F401
+
+        splash = Splash(
+            str(ROOT / "packaging" / "splash.png"),
+            binaries=a.binaries,
+            datas=a.datas,
+            text_pos=None,
+            always_on_top=True,
+        )
+        splash_parts = [splash, splash.binaries]
+    except ImportError:
+        print("WARNING: tkinter missing - building the portable app without a start-up screen")
+        splash_parts = []
+    exe = EXE(
+        pyz,
+        a.scripts,
+        *splash_parts,
+        a.binaries,
+        a.datas,
+        [],
+        name="WatermarkRemover-Portable",
+        **common,
+    )
+else:
+    exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="WatermarkRemover", **common)
+    coll = COLLECT(exe, a.binaries, a.datas, name="WatermarkRemover", upx=False)

@@ -60,6 +60,21 @@ jobs:
           if (Test-Path "$env:WMR_DATA_DIR\app.log") { Get-Content "$env:WMR_DATA_DIR\app.log" -Tail 60 }
           if ($p.ExitCode -ne 0) { throw "Self-test failed with exit code $($p.ExitCode)" }
 
+      - name: Build portable app (single .exe, no install needed)
+        shell: pwsh
+        run: |
+          $env:WMR_ONEFILE = "1"
+          pyinstaller --noconfirm --clean --workpath build/portable packaging/WatermarkRemover.spec
+          if ($LASTEXITCODE -ne 0) { throw "Portable build failed" }
+
+      - name: Smoke-test the portable app
+        shell: pwsh
+        run: |
+          $env:WMR_DATA_DIR = "$env:RUNNER_TEMP\wmr-data-portable"
+          $p = Start-Process -FilePath "dist\WatermarkRemover-Portable.exe" -ArgumentList "--self-test" -Wait -PassThru
+          if (Test-Path "$env:WMR_DATA_DIR\selftest.log") { Get-Content "$env:WMR_DATA_DIR\selftest.log" }
+          if ($p.ExitCode -ne 0) { throw "Portable self-test failed with exit code $($p.ExitCode)" }
+
       - name: Download WebView2 runtime bootstrapper
         shell: pwsh
         run: Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile "packaging\MicrosoftEdgeWebview2Setup.exe"
@@ -74,7 +89,10 @@ jobs:
           $version = python -c "import app; print(app.__version__)"
           & $iscc "/DAppVersion=$version" "packaging\installer.iss"
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed" }
-          Get-ChildItem dist\installer
+          New-Item -ItemType Directory -Force dist\release | Out-Null
+          Copy-Item dist\installer\*.exe dist\release\
+          Copy-Item dist\WatermarkRemover-Portable.exe "dist\release\WatermarkRemover-Portable-$version.exe"
+          Get-ChildItem dist\release
 
       # Workflow artifacts can be downloaded by anyone when the repository is public,
       # so the installer is only kept here for private repositories.
@@ -83,7 +101,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: WatermarkRemover-Setup
-          path: dist/installer/*.exe
+          path: dist/release/*.exe
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
@@ -97,12 +115,14 @@ jobs:
           tag_name: ${{ inputs.release_tag || github.ref_name }}
           target_commitish: ${{ github.sha }}
           name: Watermark Remover ${{ inputs.release_tag || github.ref_name }}
-          files: dist/installer/*.exe
+          files: dist/release/*.exe
           body: |
-            Windows installer for Watermark Remover ${{ inputs.release_tag || github.ref_name }}.
+            Watermark Remover ${{ inputs.release_tag || github.ref_name }} for Windows 10/11. Pick one:
 
-            1. Download `WatermarkRemover-Setup-*.exe` below and run it.
-            2. If Windows says "Windows protected your PC", click **More info → Run anyway** (the installer is not code-signed).
+            - **`WatermarkRemover-Setup-*.exe` (recommended):** double-click it once. It installs without any questions, puts a **Watermark Remover** icon on your desktop and in the Start menu, and opens the app.
+            - **`WatermarkRemover-Portable-*.exe`:** no installing. Save it to your desktop and double-click it to run. It takes a few seconds to open each time.
+
+            If Windows says "Windows protected your PC", click **More info → Run anyway** (the app is not code-signed).
 
             This is a draft release: only people with write access to this repository can see it.
             Publishing it makes it visible to everyone who can see the repository.

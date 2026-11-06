@@ -1,4 +1,4 @@
-"""Draw the app icon (packaging/icon.ico and app/web/img/icon.png)."""
+"""Draw the app icon (packaging/icon.ico, app/web/img/icon.png) and the portable app's start-up screen."""
 
 import math
 from pathlib import Path
@@ -47,10 +47,37 @@ def draw(size: int = 1024) -> Image.Image:
     return img
 
 
+def splash(icon: Image.Image) -> Image.Image:
+    """Shown by the portable .exe while it unpacks (it takes a few seconds)."""
+    from PIL import ImageFont
+
+    w, h = 520, 280
+    img = Image.new("RGB", (w, h), (17, 18, 20))
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, w - 1, h - 1], outline=(52, 53, 59))
+    img.paste(icon.resize((88, 88), Image.LANCZOS), (w // 2 - 44, 46), icon.resize((88, 88), Image.LANCZOS))
+
+    def font(size, bold=False):
+        names = ["DejaVuSans-Bold.ttf", "arialbd.ttf"] if bold else ["DejaVuSans.ttf", "arial.ttf"]
+        for name in names:
+            try:
+                return ImageFont.truetype(name, size)
+            except OSError:
+                continue
+        return ImageFont.load_default()
+
+    title, sub = "Watermark Remover", "Starting… this takes a few seconds"
+    for text, f, y, color in ((title, font(26, True), 152, (245, 245, 247)), (sub, font(15), 196, (161, 161, 170))):
+        tw = d.textlength(text, font=f)
+        d.text(((w - tw) / 2, y), text, font=f, fill=color)
+    return img
+
+
 if __name__ == "__main__":
     icon = draw(512)
     (ROOT / "packaging").mkdir(exist_ok=True)
     icon.save(ROOT / "packaging" / "icon.ico", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
     (ROOT / "app" / "web" / "img").mkdir(parents=True, exist_ok=True)
     icon.resize((256, 256), Image.LANCZOS).save(ROOT / "app" / "web" / "img" / "icon.png")
+    splash(icon).save(ROOT / "packaging" / "splash.png")
     print("icon written")

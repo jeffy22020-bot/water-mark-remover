@@ -137,6 +137,17 @@ class Bridge:
         return folder
 
 
+def close_splash() -> None:
+    """Close the start-up screen shown by the portable (single-file) build, if any."""
+    try:
+        import pyi_splash  # only exists inside the portable build
+
+        if pyi_splash.is_alive():
+            pyi_splash.close()
+    except Exception:  # noqa: BLE001 - not the portable build
+        pass
+
+
 def start_server(desktop: bool):
     import uvicorn
 
@@ -162,6 +173,7 @@ def start_server(desktop: bool):
 
 
 def run_browser(url: str) -> None:
+    close_splash()
     print(f"{APP_NAME} is running at:\n  {url}\nPress Ctrl+C to quit.", flush=True)
     webbrowser.open(url)
     try:
@@ -186,6 +198,7 @@ def run_window(url: str, store) -> bool:
         APP_NAME, url, js_api=bridge, width=1320, height=880, min_size=(980, 660), background_color="#111214",
     )
     bridge._window = window
+    close_splash()
     try:
         webview.start(debug=bool(os.environ.get("WMR_DEBUG")), private_mode=False, storage_path=str(config.data_dir() / "webview"))
     except Exception as exc:  # noqa: BLE001 - e.g. WebView2 runtime missing
@@ -209,6 +222,7 @@ def main(argv=None) -> int:
     social.install_updated_ytdlp()
 
     if args.self_test:
+        close_splash()
         from app.selftest import run_self_test
 
         return run_self_test()

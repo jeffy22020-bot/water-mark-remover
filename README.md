@@ -16,16 +16,20 @@ Everything runs on your own PC. Nothing is uploaded, there are no accounts and n
 
 ## Install (Windows 10/11, 64-bit)
 
-1. While signed in to GitHub, open the repository's **Releases** page and download `WatermarkRemover-Setup-1.0.0.exe`.
-   - Releases are created as **drafts**, so only people with write access to the repository can see them. Publishing a draft makes it visible to everyone who can see the repository.
-   - To make a new one, run **Actions → Build Windows installer → Run workflow** with a version tag such as `v1.0.1` (or push that tag).
-   - In a private repository, every build also keeps the installer for 14 days under **Actions → Build Windows installer → Artifacts**.
-2. Run `WatermarkRemover-Setup-1.0.0.exe`.
-   - The installer isn't code-signed, so Windows SmartScreen may say "Windows protected your PC". Click **More info → Run anyway**.
-   - It installs for your user account without needing admin rights, and adds Start-menu and (optionally) desktop shortcuts.
-   - If Microsoft Edge WebView2 is missing (rare on Windows 10/11), the installer adds it.
+While signed in to GitHub, open the repository's **Releases** page. Download one of these two files:
 
-The installer is about 300 MB because it includes the AI models and ffmpeg.
+| File | How to use it |
+| --- | --- |
+| `WatermarkRemover-Setup-1.0.1.exe` (recommended) | Double-click it once. It installs without asking any questions (no admin rights needed), puts a **Watermark Remover** icon on your desktop and in the Start menu, and opens the app. From then on, open the app from the desktop icon. |
+| `WatermarkRemover-Portable-1.0.1.exe` | Nothing to install. Save it to your desktop and double-click it. It unpacks itself each time, so it takes a few seconds to open; a start-up screen shows meanwhile. |
+
+- The app isn't code-signed, so Windows SmartScreen may say "Windows protected your PC". Click **More info → Run anyway**.
+- If Microsoft Edge WebView2 is missing (rare on Windows 10/11), the installer adds it.
+- Both files are about 200–250 MB because they include the AI models and ffmpeg.
+
+Releases are created as **drafts**, so only people with write access to the repository can see them. Publishing a draft makes it visible to everyone who can see the repository.
+
+To make a new release, run **Actions → Build Windows installer → Run workflow** with a version tag such as `v1.0.2` (or push that tag). In a private repository, every build also keeps both files for 14 days under the run's **Artifacts**.
 
 ### Graphics card (GPU) acceleration
 
@@ -66,7 +70,7 @@ python run_app.py --self-test       # end-to-end check (also run on the built .e
 
 To build the installer yourself on Windows:
 
-1. Run `pyinstaller --noconfirm packaging/WatermarkRemover.spec`.
+1. Run `pyinstaller --noconfirm packaging/WatermarkRemover.spec` (set `WMR_ONEFILE=1` to build the single-file portable `.exe` instead).
 2. Download the [WebView2 bootstrapper](https://go.microsoft.com/fwlink/p/?LinkId=2124703) to `packaging/MicrosoftEdgeWebview2Setup.exe`.
 3. Run `iscc packaging/installer.iss` (needs Inno Setup 6).
 

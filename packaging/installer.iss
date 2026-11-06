@@ -1,8 +1,8 @@
 ; Inno Setup script – builds WatermarkRemover-Setup-<version>.exe from dist\WatermarkRemover
-; iscc /DAppVersion=1.0.0 packaging\installer.iss
+; iscc /DAppVersion=1.0.1 packaging\installer.iss
 
 #ifndef AppVersion
-  #define AppVersion "1.0.0"
+  #define AppVersion "1.0.1"
 #endif
 #define AppName "Watermark Remover"
 #define AppExe "WatermarkRemover.exe"
@@ -26,17 +26,17 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-; Installs for the current user without admin rights; the user can choose "all users" instead.
+; One-click install for the current user: no admin rights and no questions.
 PrivilegesRequired=lowest
-PrivilegesRequiredOverridesAllowed=dialog
+DisableWelcomePage=yes
+DisableDirPage=yes
+DisableReadyPage=yes
+ShowLanguageDialog=no
 MinVersion=10.0.17763
 CloseApplications=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
-
-[Tasks]
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
 Source: "..\dist\WatermarkRemover\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -44,7 +44,7 @@ Source: "MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterin
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"
 
 [Run]
 Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Installing Microsoft Edge WebView2 runtime..."; Check: NeedsWebView2; Flags: waituntilterminated
