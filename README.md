@@ -17,7 +17,8 @@ Everything runs on your own PC. Nothing is uploaded, there are no accounts and n
 ## Install (Windows 10/11, 64-bit)
 
 1. While signed in to GitHub, open the repository's **Releases** page and download `WatermarkRemover-Setup-1.0.0.exe`.
-   - Releases are created as **drafts** (by pushing a tag such as `v1.0.0`), so only people with write access to the repository can see them. Publishing a draft makes it visible to everyone who can see the repository.
+   - Releases are created as **drafts**, so only people with write access to the repository can see them. Publishing a draft makes it visible to everyone who can see the repository.
+   - To make a new one, run **Actions → Build Windows installer → Run workflow** with a version tag such as `v1.0.1` (or push that tag).
    - In a private repository, every build also keeps the installer for 14 days under **Actions → Build Windows installer → Artifacts**.
 2. Run `WatermarkRemover-Setup-1.0.0.exe`.
    - The installer isn't code-signed, so Windows SmartScreen may say "Windows protected your PC". Click **More info → Run anyway**.

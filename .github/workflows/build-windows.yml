@@ -6,6 +6,11 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Also create a private (draft) release with this version tag, e.g. v1.0.0. Leave empty to only build."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -74,7 +79,7 @@ jobs:
       # Workflow artifacts can be downloaded by anyone when the repository is public,
       # so the installer is only kept here for private repositories.
       - name: Upload installer
-        if: ${{ !startsWith(github.ref, 'refs/tags/') && github.event.repository.private }}
+        if: ${{ !startsWith(github.ref, 'refs/tags/') && !inputs.release_tag && github.event.repository.private }}
         uses: actions/upload-artifact@v4
         with:
           name: WatermarkRemover-Setup
@@ -85,14 +90,16 @@ jobs:
 
       # Draft releases are only visible to people with write access to the repository.
       - name: Attach installer to a private (draft) GitHub release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.release_tag }}
         uses: softprops/action-gh-release@v2
         with:
           draft: true
-          name: Watermark Remover ${{ github.ref_name }}
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: Watermark Remover ${{ inputs.release_tag || github.ref_name }}
           files: dist/installer/*.exe
           body: |
-            Windows installer for Watermark Remover ${{ github.ref_name }}.
+            Windows installer for Watermark Remover ${{ inputs.release_tag || github.ref_name }}.
 
             1. Download `WatermarkRemover-Setup-*.exe` below and run it.
             2. If Windows says "Windows protected your PC", click **More info → Run anyway** (the installer is not code-signed).
